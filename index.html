@@ -1,68 +1,176 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Random Image</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
+    :root {
+      --bg: #0e0e0e;
+      --card: #1a1a1a;
+      --text: #ffffff;
+      --button: #2a2a2a;
+      --accent: #4caf50;
+      --danger: #e53935;
+    }
+
+    body.light {
+      --bg: #f2f2f2;
+      --card: #ffffff;
+      --text: #111;
+      --button: #dddddd;
+    }
+
     body {
       margin: 0;
-      background: black;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
+      min-height: 100vh;
     }
+
+    .container {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      max-width: 95vw;
+      max-height: 95vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .image-frame {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+
     img {
-      max-width: 95%;
-      max-height: 95%;
+      max-width: 100%;
+      max-height: 70vh;
+      object-fit: contain;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      background: #000;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    button {
+      background: var(--button);
+      color: var(--text);
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.85;
+    }
+
+    .like { color: var(--accent); }
+    .dislike { color: var(--danger); }
+
+    .counter {
+      font-size: 13px;
+      opacity: 0.85;
     }
   </style>
 </head>
 <body>
 
-<img id="randomImage">
+<div class="container">
+  <div class="image-frame">
+    <img id="randomImage">
+  </div>
+
+  <div class="counter" id="counterText"></div>
+
+  <div class="controls">
+    <button onclick="newImage()">🔄 New image</button>
+    <button onclick="toggleTheme()">🌗 Theme</button>
+    <button class="like" onclick="vote(1)">👍 Like (<span id="likes">0</span>)</button>
+    <button class="dislike" onclick="vote(-1)">👎 Dislike (<span id="dislikes">0</span>)</button>
+  </div>
+</div>
 
 <script>
   const images = [
-    "img1.jpg",
-    "img2.jpg",
-    "img3.jpg",
-    "img4.jpg",
-    "img5.jpg",
-    "img6.jpg",
-    "img7.jpg",
-    "img8.jpg",
-    "img9.jpg",
-    "img10.jpg",
-    "img11.jpg",
-    "img12.jpg",
-    "img13.jpg",
-    "img14.jpg",
-    "img15.jpg",
-    "img16.jpg",
-    "img17.jpg",
-    "img18.jpg",
-    "img19.jpg",
-    "img20.jpg",
-    "img21.jpg",
-    "img22.jpg",
-    "img23.jpg",
-    "img24.jpg",
-    "img25.jpg",
-    "img26.jpg",
-    "img27.jpg",
-    "img28.jpg",
-    "img29.jpg",
-    "img30.jpg",
-    "img31.jpg",
-    "img32.jpg"
+    "img1.jpg","img2.jpg","img3.jpg","img4.jpg","img5.jpg","img6.jpg","img7.jpg","img8.jpg",
+    "img9.jpg","img10.jpg","img11.jpg","img12.jpg","img13.jpg","img14.jpg","img15.jpg","img16.jpg",
+    "img17.jpg","img18.jpg","img19.jpg","img20.jpg","img21.jpg","img22.jpg","img23.jpg","img24.jpg",
+    "img25.jpg","img26.jpg","img27.jpg","img28.jpg","img29.jpg","img30.jpg","img31.jpg","img32.jpg"
   ];
 
-  const random = Math.floor(Math.random() * images.length);
-  document.getElementById("randomImage").src = images[random];
+  let lastIndex = -1;
+  let currentIndex = 0;
+
+  const imgEl = document.getElementById("randomImage");
+  const likesEl = document.getElementById("likes");
+  const dislikesEl = document.getElementById("dislikes");
+  const counterEl = document.getElementById("counterText");
+
+  function newImage() {
+    let index;
+    do {
+      index = Math.floor(Math.random() * images.length);
+    } while (index === lastIndex);
+
+    lastIndex = index;
+    currentIndex = index;
+
+    imgEl.src = images[index];
+    updateVotes();
+    counterEl.textContent = `Image ${index + 1} of ${images.length}`;
+  }
+
+  function vote(value) {
+    const key = "votes_" + images[currentIndex];
+    const data = JSON.parse(localStorage.getItem(key)) || { like: 0, dislike: 0 };
+
+    if (value === 1) data.like++;
+    if (value === -1) data.dislike++;
+
+    localStorage.setItem(key, JSON.stringify(data));
+    updateVotes();
+  }
+
+  function updateVotes() {
+    const key = "votes_" + images[currentIndex];
+    const data = JSON.parse(localStorage.getItem(key)) || { like: 0, dislike: 0 };
+    likesEl.textContent = data.like;
+    dislikesEl.textContent = data.dislike;
+  }
+
+  function toggleTheme() {
+    document.body.classList.toggle("light");
+    localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+  }
+
+  // Restore theme
+  if (localStorage.getItem("theme") === "light") {
+    document.body.classList.add("light");
+  }
+
+  // Initial image
+  newImage();
 </script>
 
 </body>
-
 </html>
-
