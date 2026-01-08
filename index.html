@@ -104,105 +104,126 @@
 <!-- 🔥 FIREBASE + APP LOGIC -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import {
-    getFirestore,
-    doc,
-    getDoc,
-    setDoc,
-    onSnapshot,
-    runTransaction
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  onSnapshot,
+  runTransaction
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  // 🔥 YOUR FIREBASE CONFIG
-  const firebaseConfig = {
-    apiKey: "AIzaSyAn9feNo3uLdqUR_K2MOepJ8lfYLN1fE9c",
-    authDomain: "alibum.firebaseapp.com",
-    projectId: "alibum",
-    storageBucket: "alibum.firebasestorage.app",
-    messagingSenderId: "631498491128",
-    appId: "1:631498491128:web:953e5247e803240852670d",
-    measurementId: "G-VM3V86R8B1"
-  };
+// Firebase config (unchanged)
+const firebaseConfig = {
+  apiKey: "AIzaSyAn9feNo3uLdqUR_K2MOepJ8lfYLN1fE9c",
+  authDomain: "alibum.firebaseapp.com",
+  projectId: "alibum",
+  storageBucket: "alibum.firebasestorage.app",
+  messagingSenderId: "631498491128",
+  appId: "1:631498491128:web:953e5247e803240852670d"
+};
 
-  // Init Firebase
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  // 🖼 Images
-  const images = Array.from({ length: 32 }, (_, i) => `img${i + 1}.jpg`);
+// Images
+const images = Array.from({ length: 32 }, (_, i) => `img${i + 1}.jpg`);
 
-  let lastIndex = -1;
-  let currentIndex = 0;
+let lastIndex = -1;
+let currentIndex = 0;
+let unsubscribe = null;
 
-  const imgEl = document.getElementById("randomImage");
-  const likesEl = document.getElementById("likes");
-  const dislikesEl = document.getElementById("dislikes");
-  const counterEl = document.getElementById("counterText");
+// Elements
+const imgEl = document.getElementById("randomImage");
+const likesEl = document.getElementById("likes");
+const dislikesEl = document.getElementById("dislikes");
+const counterEl = document.getElementById("counterText");
+const likeBtn = document.getElementById("likeBtn");
+const dislikeBtn = document.getElementById("dislikeBtn");
 
-  function newImage() {
-    let index;
-    do {
-      index = Math.floor(Math.random() * images.length);
-    } while (index === lastIndex);
+// 🔄 Load new image (no repeat)
+function newImage() {
+  let index;
+  do {
+    index = Math.floor(Math.random() * images.length);
+  } while (index === lastIndex);
 
-    lastIndex = index;
-    currentIndex = index;
+  lastIndex = index;
+  currentIndex = index;
 
-    imgEl.src = images[index];
-    counterEl.textContent = `Image ${index + 1} of ${images.length}`;
+  imgEl.src = images[index];
+  counterEl.textContent = `Image ${index + 1} of ${images.length}`;
 
-    listenToVotes();
-  }
+  listenForVotes();
+  updateVoteButtons();
+}
 
-  function listenToVotes() {
-    const ref = doc(db, "images", images[currentIndex]);
+// 👂 Live vote listener (ONE per image)
+function listenForVotes() {
+  if (unsubscribe) unsubscribe();
 
-    onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        likesEl.textContent = snap.data().like || 0;
-        dislikesEl.textContent = snap.data().dislike || 0;
-      } else {
-        likesEl.textContent = 0;
-        dislikesEl.textContent = 0;
-      }
-    });
-  }
+  const ref = doc(db, "images", images[currentIndex]);
+  unsubscribe = onSnapshot(ref, (snap) => {
+    if (snap.exists()) {
+      likesEl.textContent = snap.data().like || 0;
+      dislikesEl.textContent = snap.data().dislike || 0;
+    } else {
+      likesEl.textContent = 0;
+      dislikesEl.textContent = 0;
+    }
+  });
+}
 
-  async function vote(type) {
-    const ref = doc(db, "images", images[currentIndex]);
+// 🧠 Prevent multiple votes per device
+function updateVoteButtons() {
+  const vote = localStorage.getItem("voted_" + images[currentIndex]);
+  const disabled = !!vote;
 
-    await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(ref);
-      let data = snap.exists() ? snap.data() : { like: 0, dislike: 0 };
+  likeBtn.disabled = disabled;
+  dislikeBtn.disabled = disabled;
+}
 
-      if (type === "like") data.like++;
-      if (type === "dislike") data.dislike++;
+// 👍👎 Vote once per device
+async function vote(type) {
+  const voteKey = "voted_" + images[currentIndex];
+  if (localStorage.getItem(voteKey)) return;
 
-      transaction.set(ref, data);
-    });
-  }
+  const ref = doc(db, "images", images[currentIndex]);
 
-  // 🌗 Theme
-  if (localStorage.getItem("theme") === "light") {
-    document.body.classList.add("light");
-  }
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    let data = snap.exists() ? snap.data() : { like: 0, dislike: 0 };
 
-  document.getElementById("themeBtn").onclick = () => {
-    document.body.classList.toggle("light");
-    localStorage.setItem(
-      "theme",
-      document.body.classList.contains("light") ? "light" : "dark"
-    );
-  };
+    if (type === "like") data.like++;
+    if (type === "dislike") data.dislike++;
 
-  // Buttons
-  document.getElementById("refreshBtn").onclick = newImage;
-  document.getElementById("likeBtn").onclick = () => vote("like");
-  document.getElementById("dislikeBtn").onclick = () => vote("dislike");
+    transaction.set(ref, data);
+  });
 
-  // Initial load
-  newImage();
+  localStorage.setItem(voteKey, type);
+  updateVoteButtons();
+}
+
+// Buttons
+document.getElementById("refreshBtn").onclick = newImage;
+likeBtn.onclick = () => vote("like");
+dislikeBtn.onclick = () => vote("dislike");
+
+// Theme restore (unchanged)
+if (localStorage.getItem("theme") === "light") {
+  document.body.classList.add("light");
+}
+
+document.getElementById("themeBtn").onclick = () => {
+  document.body.classList.toggle("light");
+  localStorage.setItem(
+    "theme",
+    document.body.classList.contains("light") ? "light" : "dark"
+  );
+};
+
+// Initial load
+newImage();
 </script>
 
 </body>
 </html>
+
