@@ -76,6 +76,11 @@
       opacity: 0.85;
     }
 
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .like { color: var(--accent); }
     .dislike { color: var(--danger); }
 
@@ -90,9 +95,7 @@
 
 <div class="container">
   <img id="randomImage">
-
   <div class="counter" id="counterText"></div>
-
   <div class="controls">
     <button id="refreshBtn">🔄 New image</button>
     <button id="themeBtn">🌗 Theme</button>
@@ -101,17 +104,11 @@
   </div>
 </div>
 
-<!-- 🔥 FIREBASE + APP LOGIC -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-  getFirestore,
-  doc,
-  onSnapshot,
-  runTransaction
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// Firebase config (unchanged)
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAn9feNo3uLdqUR_K2MOepJ8lfYLN1fE9c",
   authDomain: "alibum.firebaseapp.com",
@@ -124,7 +121,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Images
+// Images array
 const images = Array.from({ length: 32 }, (_, i) => `img${i + 1}.jpg`);
 
 let lastIndex = -1;
@@ -139,13 +136,12 @@ const counterEl = document.getElementById("counterText");
 const likeBtn = document.getElementById("likeBtn");
 const dislikeBtn = document.getElementById("dislikeBtn");
 
-// 🔄 Load new image (no repeat)
+// 🔄 Load a new random image (no repeat)
 function newImage() {
   let index;
   do {
     index = Math.floor(Math.random() * images.length);
   } while (index === lastIndex);
-
   lastIndex = index;
   currentIndex = index;
 
@@ -156,10 +152,9 @@ function newImage() {
   updateVoteButtons();
 }
 
-// 👂 Live vote listener (ONE per image)
+// 👂 Live vote listener
 function listenForVotes() {
   if (unsubscribe) unsubscribe();
-
   const ref = doc(db, "images", images[currentIndex]);
   unsubscribe = onSnapshot(ref, (snap) => {
     if (snap.exists()) {
@@ -174,11 +169,15 @@ function listenForVotes() {
 
 // 🧠 Prevent multiple votes per device
 function updateVoteButtons() {
-  const vote = localStorage.getItem("voted_" + images[currentIndex]);
-  const disabled = !!vote;
-
-  likeBtn.disabled = disabled;
-  dislikeBtn.disabled = disabled;
+  const voteKey = "voted_" + images[currentIndex];
+  const vote = localStorage.getItem(voteKey);
+  if (vote === "like" || vote === "dislike") {
+    likeBtn.disabled = true;
+    dislikeBtn.disabled = true;
+  } else {
+    likeBtn.disabled = false;
+    dislikeBtn.disabled = false;
+  }
 }
 
 // 👍👎 Vote once per device
@@ -187,7 +186,6 @@ async function vote(type) {
   if (localStorage.getItem(voteKey)) return;
 
   const ref = doc(db, "images", images[currentIndex]);
-
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     let data = snap.exists() ? snap.data() : { like: 0, dislike: 0 };
@@ -202,16 +200,15 @@ async function vote(type) {
   updateVoteButtons();
 }
 
-// Buttons
+// Button events
 document.getElementById("refreshBtn").onclick = newImage;
 likeBtn.onclick = () => vote("like");
 dislikeBtn.onclick = () => vote("dislike");
 
-// Theme restore (unchanged)
+// Theme
 if (localStorage.getItem("theme") === "light") {
   document.body.classList.add("light");
 }
-
 document.getElementById("themeBtn").onclick = () => {
   document.body.classList.toggle("light");
   localStorage.setItem(
@@ -226,4 +223,3 @@ newImage();
 
 </body>
 </html>
-
