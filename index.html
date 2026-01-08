@@ -1,94 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Random Image</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>Random Image</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    :root {
-      --bg: #0e0e0e;
-      --card: #1a1a1a;
-      --text: #ffffff;
-      --button: #2a2a2a;
-      --accent: #4caf50;
-      --danger: #e53935;
-    }
+<style>
+  :root {
+    --bg: #0e0e0e;
+    --card: #1a1a1a;
+    --text: #ffffff;
+    --button: #2a2a2a;
+    --accent: #4caf50;
+    --accent-active: #66ff66;
+    --danger: #e53935;
+    --danger-active: #ff6b6b;
+  }
 
-    body.light {
-      --bg: #f2f2f2;
-      --card: #ffffff;
-      --text: #111;
-      --button: #dddddd;
-    }
+  body.light {
+    --bg: #f2f2f2;
+    --card: #ffffff;
+    --text: #111;
+    --button: #dddddd;
+  }
 
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
 
-    .container {
-      background: var(--card);
-      padding: 16px;
-      border-radius: 16px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
-      max-width: 95vw;
-      max-height: 95vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
+  .container {
+    background: var(--card);
+    padding: 16px;
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    max-width: 95vw;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
 
-    img {
-      max-width: 100%;
-      max-height: 70vh;
-      object-fit: contain;
-      border-radius: 12px;
-      background: black;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.45);
-    }
+  img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 12px;
+    background: black;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.45);
+  }
 
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-    }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
 
-    button {
-      background: var(--button);
-      color: var(--text);
-      border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 14px;
-      cursor: pointer;
-    }
+  button {
+    background: var(--button);
+    color: var(--text);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
 
-    button:hover {
-      opacity: 0.85;
-    }
+  .like { color: var(--accent); }
+  .dislike { color: var(--danger); }
 
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+  .active.like { background: var(--accent-active); color: black; }
+  .active.dislike { background: var(--danger-active); color: black; }
 
-    .like { color: var(--accent); }
-    .dislike { color: var(--danger); }
-
-    .counter {
-      font-size: 13px;
-      opacity: 0.85;
-    }
-  </style>
+  .counter {
+    font-size: 13px;
+    opacity: 0.85;
+  }
+</style>
 </head>
 
 <body>
@@ -139,9 +136,7 @@ const dislikeBtn = document.getElementById("dislikeBtn");
 // 🔄 Load a new random image (no repeat)
 function newImage() {
   let index;
-  do {
-    index = Math.floor(Math.random() * images.length);
-  } while (index === lastIndex);
+  do { index = Math.floor(Math.random() * images.length); } while (index === lastIndex);
   lastIndex = index;
   currentIndex = index;
 
@@ -167,36 +162,41 @@ function listenForVotes() {
   });
 }
 
-// 🧠 Prevent multiple votes per device
+// 🧠 Update buttons highlighting based on stored vote
 function updateVoteButtons() {
   const voteKey = "voted_" + images[currentIndex];
   const vote = localStorage.getItem(voteKey);
-  if (vote === "like" || vote === "dislike") {
-    likeBtn.disabled = true;
-    dislikeBtn.disabled = true;
-  } else {
-    likeBtn.disabled = false;
-    dislikeBtn.disabled = false;
-  }
+  likeBtn.classList.toggle("active", vote === "like");
+  dislikeBtn.classList.toggle("active", vote === "dislike");
 }
 
-// 👍👎 Vote once per device
+// 👍👎 Vote / undo vote
 async function vote(type) {
   const voteKey = "voted_" + images[currentIndex];
-  if (localStorage.getItem(voteKey)) return;
-
   const ref = doc(db, "images", images[currentIndex]);
+  const currentVote = localStorage.getItem(voteKey);
+
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     let data = snap.exists() ? snap.data() : { like: 0, dislike: 0 };
 
-    if (type === "like") data.like++;
-    if (type === "dislike") data.dislike++;
+    if (currentVote === type) {
+      // Undo vote
+      data[type] = Math.max(0, (data[type] || 0) - 1);
+      localStorage.removeItem(voteKey);
+    } else {
+      // Remove old vote if switching
+      if (currentVote === "like") data.like = Math.max(0, (data.like || 0) - 1);
+      if (currentVote === "dislike") data.dislike = Math.max(0, (data.dislike || 0) - 1);
+
+      // Add new vote
+      data[type] = (data[type] || 0) + 1;
+      localStorage.setItem(voteKey, type);
+    }
 
     transaction.set(ref, data);
   });
 
-  localStorage.setItem(voteKey, type);
   updateVoteButtons();
 }
 
@@ -206,9 +206,7 @@ likeBtn.onclick = () => vote("like");
 dislikeBtn.onclick = () => vote("dislike");
 
 // Theme
-if (localStorage.getItem("theme") === "light") {
-  document.body.classList.add("light");
-}
+if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
 document.getElementById("themeBtn").onclick = () => {
   document.body.classList.toggle("light");
   localStorage.setItem(
