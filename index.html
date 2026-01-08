@@ -36,8 +36,8 @@
     .container {
       background: var(--card);
       padding: 16px;
-      border-radius: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
       max-width: 95vw;
       max-height: 95vh;
       display: flex;
@@ -46,21 +46,13 @@
       gap: 12px;
     }
 
-    .image-frame {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      width: 100%;
-    }
-
     img {
       max-width: 100%;
       max-height: 70vh;
       object-fit: contain;
-      border-radius: 10px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-      background: #000;
+      border-radius: 12px;
+      background: black;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.45);
     }
 
     .controls {
@@ -93,30 +85,51 @@
     }
   </style>
 </head>
+
 <body>
 
 <div class="container">
-  <div class="image-frame">
-    <img id="randomImage">
-  </div>
+  <img id="randomImage">
 
   <div class="counter" id="counterText"></div>
 
   <div class="controls">
-    <button onclick="newImage()">🔄 New image</button>
-    <button onclick="toggleTheme()">🌗 Theme</button>
-    <button class="like" onclick="vote(1)">👍 Like (<span id="likes">0</span>)</button>
-    <button class="dislike" onclick="vote(-1)">👎 Dislike (<span id="dislikes">0</span>)</button>
+    <button id="refreshBtn">🔄 New image</button>
+    <button id="themeBtn">🌗 Theme</button>
+    <button class="like" id="likeBtn">👍 Like (<span id="likes">0</span>)</button>
+    <button class="dislike" id="dislikeBtn">👎 Dislike (<span id="dislikes">0</span>)</button>
   </div>
 </div>
 
-<script>
-  const images = [
-    "img1.jpg","img2.jpg","img3.jpg","img4.jpg","img5.jpg","img6.jpg","img7.jpg","img8.jpg",
-    "img9.jpg","img10.jpg","img11.jpg","img12.jpg","img13.jpg","img14.jpg","img15.jpg","img16.jpg",
-    "img17.jpg","img18.jpg","img19.jpg","img20.jpg","img21.jpg","img22.jpg","img23.jpg","img24.jpg",
-    "img25.jpg","img26.jpg","img27.jpg","img28.jpg","img29.jpg","img30.jpg","img31.jpg","img32.jpg"
-  ];
+<!-- 🔥 FIREBASE + APP LOGIC -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import {
+    getFirestore,
+    doc,
+    getDoc,
+    setDoc,
+    onSnapshot,
+    runTransaction
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  // 🔥 YOUR FIREBASE CONFIG
+  const firebaseConfig = {
+    apiKey: "AIzaSyAn9feNo3uLdqUR_K2MOepJ8lfYLN1fE9c",
+    authDomain: "alibum.firebaseapp.com",
+    projectId: "alibum",
+    storageBucket: "alibum.firebasestorage.app",
+    messagingSenderId: "631498491128",
+    appId: "1:631498491128:web:953e5247e803240852670d",
+    measurementId: "G-VM3V86R8B1"
+  };
+
+  // Init Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 🖼 Images
+  const images = Array.from({ length: 32 }, (_, i) => `img${i + 1}.jpg`);
 
   let lastIndex = -1;
   let currentIndex = 0;
@@ -136,39 +149,58 @@
     currentIndex = index;
 
     imgEl.src = images[index];
-    updateVotes();
     counterEl.textContent = `Image ${index + 1} of ${images.length}`;
+
+    listenToVotes();
   }
 
-  function vote(value) {
-    const key = "votes_" + images[currentIndex];
-    const data = JSON.parse(localStorage.getItem(key)) || { like: 0, dislike: 0 };
+  function listenToVotes() {
+    const ref = doc(db, "images", images[currentIndex]);
 
-    if (value === 1) data.like++;
-    if (value === -1) data.dislike++;
-
-    localStorage.setItem(key, JSON.stringify(data));
-    updateVotes();
+    onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        likesEl.textContent = snap.data().like || 0;
+        dislikesEl.textContent = snap.data().dislike || 0;
+      } else {
+        likesEl.textContent = 0;
+        dislikesEl.textContent = 0;
+      }
+    });
   }
 
-  function updateVotes() {
-    const key = "votes_" + images[currentIndex];
-    const data = JSON.parse(localStorage.getItem(key)) || { like: 0, dislike: 0 };
-    likesEl.textContent = data.like;
-    dislikesEl.textContent = data.dislike;
+  async function vote(type) {
+    const ref = doc(db, "images", images[currentIndex]);
+
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref);
+      let data = snap.exists() ? snap.data() : { like: 0, dislike: 0 };
+
+      if (type === "like") data.like++;
+      if (type === "dislike") data.dislike++;
+
+      transaction.set(ref, data);
+    });
   }
 
-  function toggleTheme() {
-    document.body.classList.toggle("light");
-    localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
-  }
-
-  // Restore theme
+  // 🌗 Theme
   if (localStorage.getItem("theme") === "light") {
     document.body.classList.add("light");
   }
 
-  // Initial image
+  document.getElementById("themeBtn").onclick = () => {
+    document.body.classList.toggle("light");
+    localStorage.setItem(
+      "theme",
+      document.body.classList.contains("light") ? "light" : "dark"
+    );
+  };
+
+  // Buttons
+  document.getElementById("refreshBtn").onclick = newImage;
+  document.getElementById("likeBtn").onclick = () => vote("like");
+  document.getElementById("dislikeBtn").onclick = () => vote("dislike");
+
+  // Initial load
   newImage();
 </script>
 
